@@ -1,0 +1,277 @@
+Search query with join
+
+$partSaleData = UserSale::raw(function($collection) use($condition, $skip, $perPage) {
+return $collection->aggregate([
+            [
+                '$match' => $condition
+            ],
+            [
+                '$project' => [
+                    'yearSubstring' => [ '$substr' => [ '$us_date', 0, 4]],
+                    'monthSubstring' => [ '$substr' => [ '$us_date', 4, 2]],
+                    'daySubstring' => [ '$substr' => [ '$us_date', 6, 2]],
+                    'us_part_number' => '$us_part_number',
+                    'us_dealer_u_id' => '$us_dealer_u_id',
+                    'us_date' => '$us_date',
+                    'us_sup_part_number' => '$us_sup_part_number',
+                    'us_alter_part_number' => '$us_alter_part_number',
+                    'us_qty' => ['$sum' => '$us_available_qty'],
+                    'us_this_month_sale' => '$us_this_month_sale',
+                    'us_three_month_sale' => '$us_three_month_sale',
+                    'us_six_month_sale' => '$us_six_month_sale',
+                    'us_yearly_sale' => '$us_yearly_sale',
+                ],
+            ],
+            [
+                '$group' => [
+                    '_id' => [
+                        //'monthSubstring' => '$monthSubstring',
+                        //'yearSubstring' => '$yearSubstring',
+                        'us_part_number' => '$us_part_number',
+                        'us_dealer_u_id' => '$us_dealer_u_id'
+                    ],
+                    'us_part_number' => ['$last' => '$us_part_number'],
+                    'us_dealer_u_id' => ['$last' => '$us_dealer_u_id'],
+                    'us_date' => ['$last' => '$us_date'],
+                    'monthSubstring' => ['$last' => '$monthSubstring'],
+                    'yearSubstring' => ['$last' => '$yearSubstring'],
+                    'daySubstring' => ['$last' => '$daySubstring'],
+                    'us_sup_part_number' => ['$last' => '$us_sup_part_number'],
+                    'us_alter_part_number' => ['$last' => '$us_alter_part_number'],
+                    'us_qty' => ['$sum' => '$us_qty'],
+                    'thisMonth' => ['$sum' => '$us_this_month_sale'],
+                    'last3Month' => ['$sum' => '$us_three_month_sale'],
+                    'last6Month' => ['$sum' => '$us_six_month_sale'],
+                    'last12Month' => ['$sum' => '$us_yearly_sale'],
+                ]
+            ],
+            [
+                '$lookup' => [
+                    'from' => 'hh_users',
+                    'localField' => 'us_dealer_u_id',
+                    'foreignField' => 'u_id',
+                    'as' => 'user'
+                ]
+            ],
+            [
+                '$sort' => [
+                    'us_date' => -1,
+                    'us_part_number' => -1
+                ]
+            ],
+            [
+                '$skip' => $skip
+            ],
+            [
+                '$limit' => $perPage
+            ]
+]);
+});
+
+
+Other Example
+
+$dealerUsersLimited = User::raw(function($collection) use($part1, $part2, $part3,
+                        $part4, $part5, $skip,
+                        $perPage, $condition,
+                        $longitude, $latitude, $totalUsers) {
+
+                    return $collection->aggregate([
+                                [
+                                    '$geoNear' => [
+                                        "near" => [ "coordinates" => [$longitude, $latitude]],
+                                        "distanceField" => "dist",
+                                        "spherical" => true,
+                                        "limit" => $totalUsers
+                                    ]
+                                ],
+                                ['$match' => [
+                                        'u_status' => 1,
+                                    ]
+                                ],
+                                [
+                                    '$lookup' => [
+                                        'from' => 'hh_user_sales',
+                                        'localField' => 'u_id',
+                                        'foreignField' => 'us_dealer_u_id',
+                                        'as' => 'usersales'
+                                    ]
+                                ],
+                                [
+                                    '$unwind' => '$usersales'
+                                ],
+                                [
+                                    '$project' => [
+                                        'u_fname' => '$u_fname',
+                                        'u_lname' => '$u_lname',
+                                        'u_dealer_phone' => '$u_dealer_phone',
+                                        'u_email' => '$u_email',
+                                        'u_city' => '$u_city',
+                                        'u_state' => '$u_state',
+                                        'updated_at' => '$updated_at',
+                                        'us_qty' => '$usersales.us_available_qty',
+                                        'us_dealer_u_id' => '$usersales.us_dealer_u_id',
+                                        'us_corporate_dealer_u_id' => '$usersales.us_corporate_dealer_u_id',
+                                        'us_oem_u_id' => '$usersales.us_oem_u_id',
+                                        'us_part_number' => ['$toLower' => ['$usersales.us_part_number']],
+                                        'dist' => '$dist'
+                                    ],
+                                ],
+                                [
+                                    '$match' => $condition
+                                ],
+                                [
+                                    '$group' => [
+                                        '_id' => [
+                                            'us_part_number' => '$us_part_number',
+                                            'us_dealer_u_id' => '$us_dealer_u_id',
+                                        //'us_corporate_dealer_u_id' => '$us_corporate_dealer_u_id',
+                                        //'us_oem_u_id' => '$us_oem_u_id',
+                                        ],
+                                        'u_fname' => ['$last' => '$u_fname'],
+                                        'u_lname' => ['$last' => '$u_lname'],
+                                        'u_dealer_phone' => ['$last' => '$u_dealer_phone'],
+                                        'u_email' => ['$last' => '$u_email'],
+                                        'u_city' => ['$last' => '$u_city'],
+                                        'u_state' => ['$last' => '$u_state'],
+                                        'updated_at' => ['$last' => '$updated_at'],
+                                        'dist' => ['$last' => '$dist'],
+                                        'us_part_number' => ['$last' => '$us_part_number'],
+                                        'us_qty' => ['$sum' => '$us_qty'],
+                                        'us_dealer_u_id' => ['$last' => '$us_dealer_u_id']
+                                    ],
+                                ],
+                                [
+                                    '$group' => [
+                                        '_id' => [
+                                            'us_dealer_u_id' => '$us_dealer_u_id',
+                                        ],
+                                        'u_fname' => ['$last' => '$u_fname'],
+                                        'u_lname' => ['$last' => '$u_lname'],
+                                        'u_dealer_phone' => ['$last' => '$u_dealer_phone'],
+                                        'u_email' => ['$last' => '$u_email'],
+                                        'u_city' => ['$last' => '$u_city'],
+                                        'u_state' => ['$last' => '$u_state'],
+                                        'updated_at' => ['$last' => '$updated_at'],
+                                        'dist' => ['$last' => '$dist'],
+                                        'us_part_number' => ['$last' => '$us_part_number'],
+                                        'us_dealer_u_id' => ['$last' => '$us_dealer_u_id'],
+                                        'part1_qty' => [
+                                            '$max' => [
+                                                '$cond' => [
+                                                    [ '$eq' => ['$us_part_number', $part1]], '$us_qty', 0
+                                                ]
+                                            ]
+                                        ],
+                                        'part2_qty' => [
+                                            '$max' => [
+                                                '$cond' => [
+                                                    [ '$eq' => ['$us_part_number', $part2]], '$us_qty', 0
+                                                ]
+                                            ]
+                                        ],
+                                        'part3_qty' => [
+                                            '$max' => [
+                                                '$cond' => [
+                                                    [ '$eq' => ['$us_part_number', $part3]], '$us_qty', 0
+                                                ]
+                                            ]
+                                        ],
+                                        'part4_qty' => [
+                                            '$max' => [
+                                                '$cond' => [
+                                                    [ '$eq' => ['$us_part_number', $part4]], '$us_qty', 0
+                                                ]
+                                            ]
+                                        ],
+                                        'part5_qty' => [
+                                            '$max' => [
+                                                '$cond' => [
+                                                    [ '$eq' => ['$us_part_number', $part5]], '$us_qty', 0
+                                                ]
+                                            ]
+                                        ],
+                                    ],
+                                ],
+                                [
+                                    '$project' => [
+                                        'u_fname' => '$u_fname',
+                                        'u_lname' => '$u_lname',
+                                        'u_dealer_phone' => '$u_dealer_phone',
+                                        'u_email' => '$u_email',
+                                        'u_city' => '$u_city',
+                                        'u_state' => '$u_state',
+                                        'updated_at' => '$updated_at',
+                                        'us_part_number' => '$us_part_number',
+                                        'us_qty' => '$us_qty',
+                                        'us_dealer_u_id' => '$us_dealer_u_id',
+                                        'part1_qty' => '$part1_qty',
+                                        'part2_qty' => '$part2_qty',
+                                        'part3_qty' => '$part3_qty',
+                                        'part4_qty' => '$part4_qty',
+                                        'part5_qty' => '$part5_qty',
+                                        'total' => ['$add' => ['$part1_qty', '$part2_qty', '$part3_qty', '$part4_qty', '$part5_qty']],
+                                        'dist' => '$dist'
+                                    ],
+                                ],
+                                [
+                                    '$sort' => [
+                                        'part1_qty' => -1,
+                                        'part2_qty' => -1,
+                                        'part3_qty' => -1,
+                                        'part4_qty' => -1,
+                                        'part5_qty' => -1,
+                                        'total' => -1,
+                                        'dist' => 1,
+                                        'us_qty' => -1,
+                                    ]
+                                ],
+                                [
+                                    '$skip' => $skip
+                                ],
+                                [
+                                    '$limit' => $perPage
+                                ]
+                    ]);
+                });
+
+
+
+For count data 
+
+$dealerUsersCount = UserSale::raw(function($collection) use($condition) {
+                    return $collection->aggregate([
+                                [
+                                    '$project' => [
+                                        'us_part_number' => '$us_part_number',
+                                        'us_qty' => '$us_qty',
+                                        'us_dealer_u_id' => '$us_dealer_u_id',
+                                        'us_part_number' => ['$toLower' => ['$us_part_number']]
+                                    ],
+                                ],
+                                [
+                                    '$match' => $condition
+                                ],
+                                [
+                                    '$lookup' => [
+                                        'from' => 'hh_users',
+                                        'localField' => 'us_dealer_u_id',
+                                        'foreignField' => 'u_id',
+                                        'as' => 'user'
+                                    ]
+                                ],
+                                ['$unwind' => '$user'],
+                                ['$match' => ['user.u_status' => 1]],
+                                [
+                                    '$group' => [
+                                        '_id' => ['us_dealer_u_id' => '$us_dealer_u_id'],
+                                    ]
+                                ],
+                                [
+                                    '$group' => [
+                                        '_id' => null,
+                                        'total' => ['$sum' => 1]
+                                    ]
+                                ]
+                    ]);
+                });
